@@ -598,14 +598,7 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 #gameUI{position:absolute;inset:0;pointer-events:none;z-index:20;font-family:'Share Tech Mono',monospace;}
 #gameUI button{pointer-events:auto;}
 
-/* ── HUD 左右セーフマージン ──
-   ステータスバー・端末ベゼルとの干渉を防ぐため左右に余白を追加。
-   safe-area-inset に 12px を加算（PWA ノッチ端末でも安全）。 */
-:root{
-  --hud-margin-x: max(12px, calc(env(safe-area-inset-left, 0px) + 12px));
-}
-
-#topLeft{position:absolute;top:10px;left:var(--hud-margin-x);}
+#topLeft{position:absolute;top:10px;left:10px;}
 #lbl-cal{color:rgba(0,200,255,0.7);font-size:clamp(7px,1.2vw,10px);letter-spacing:3px;font-family:'Orbitron',monospace;line-height:1.35;}
 #val-cal{
   color:#fff;font-family:'Orbitron',monospace;font-weight:700;
@@ -627,7 +620,7 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 #hp-in::after{content:'';position:absolute;inset:0 0 50% 0;background:rgba(255,255,255,0.18);}
 #txt-hp{color:rgba(0,200,255,0.6);font-size:clamp(7px,1vw,9px);text-align:center;margin-top:3px;letter-spacing:2px;font-family:'Orbitron',monospace;}
 
-#topRight{position:absolute;top:8px;right:var(--hud-margin-x);text-align:right;}
+#topRight{position:absolute;top:8px;right:var(--hud-margin-x);display:flex;flex-direction:column;align-items:flex-end;}
 #ui-stage{
   font-family:'Orbitron',monospace;
   color:#ff0;font-size:clamp(8px,1.2vw,11px);letter-spacing:3px;
