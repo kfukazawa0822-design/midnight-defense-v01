@@ -598,13 +598,8 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 #gameUI{position:absolute;inset:0;pointer-events:none;z-index:20;font-family:'Share Tech Mono',monospace;}
 #gameUI button{pointer-events:auto;}
 
-/* ── HUD 左右セーフマージン ──
-   ステータスバー・端末ベゼルとの干渉を防ぐため左右に余白を追加。
-   safe-area-inset に 12px を加算（PWA ノッチ端末でも安全）。 */
-:root{
-  --hud-margin-x: max(12px, calc(env(safe-area-inset-left, 0px) + 12px));
-}
-
+/* ── HUD 左右セーフマージン ── */
+:root{ --hud-margin-x: max(12px, calc(env(safe-area-inset-left, 0px) + 12px)); }
 #topLeft{position:absolute;top:10px;left:var(--hud-margin-x);}
 #lbl-cal{color:rgba(0,200,255,0.7);font-size:clamp(7px,1.2vw,10px);letter-spacing:3px;font-family:'Orbitron',monospace;line-height:1.35;}
 #val-cal{
