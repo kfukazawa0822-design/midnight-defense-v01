@@ -1,6 +1,6 @@
 {
-  "name": "My Game",
-  "short_name": "Game",
+  "name": "MIDNIGHT DEFENSE -深夜食欲防衛戦-",
+  "short_name": "MIDNIGHT DEFENSE",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#000000",
