@@ -314,6 +314,47 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   background:rgba(0,0,20,0.55);
   border-radius:inherit;
 }
+
+/* ─── ENDLESS 解放フラッシュオーバーレイ ─── */
+#unlock-flash{
+  position:fixed;inset:0;z-index:9000;
+  background:#fff;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.05s;
+}
+
+/* ─── ENDLESS 解放済みカード: 呼吸アニメ ─── */
+@keyframes endlessBreathe{
+  0%,100%{box-shadow:0 0 14px rgba(255,105,180,0.4),0 0 28px rgba(255,105,180,0.15);}
+  50%{box-shadow:0 0 28px rgba(255,105,180,0.8),0 0 55px rgba(255,105,180,0.35),0 0 80px rgba(200,60,180,0.15);}
+}
+.sc-endless-unlocked{
+  animation:endlessBreathe 2.2s ease-in-out infinite;
+  border-color:rgba(255,105,180,0.7) !important;
+}
+
+/* ─── UNLOCKED バッジ点滅 ─── */
+@keyframes unlockedPulse{
+  0%,100%{opacity:1;text-shadow:0 0 10px #ff69b4,0 0 22px rgba(255,105,180,0.6);}
+  50%{opacity:0.6;text-shadow:0 0 4px #ff69b4;}
+}
+.sc-unlocked-badge{
+  font-family:'Orbitron',monospace;font-weight:700;
+  font-size:clamp(8px,1.2vw,11px);letter-spacing:4px;
+  color:#ff69b4;margin-top:5px;
+  animation:unlockedPulse 1.6s ease-in-out infinite;
+}
+
+/* ─── 解放時カードスケール演出 ─── */
+@keyframes unlockPop{
+  0%  {transform:scale(1);}
+  40% {transform:scale(1.08);}
+  65% {transform:scale(0.97);}
+  100%{transform:scale(1);}
+}
+.sc-unlock-pop{
+  animation:unlockPop 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
+}
 .sc-lock-badge{
   font-family:'Share Tech Mono',monospace;
   font-size:clamp(8px,1.2vw,10px);letter-spacing:2px;
@@ -389,7 +430,7 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   color:#0ff;font-size:clamp(18px,3.3vw,30px);letter-spacing:6px;
   text-shadow:0 0 12px #0ff;margin-bottom:24px;
 }
-.stage-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:none;}
+.stage-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:600px;}
 .sc{
   background:rgba(0,8,30,0.85);
   border:1px solid rgba(0,200,255,0.25);
@@ -735,6 +776,9 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
     </div>
   </div>
 </div>
+
+<!-- エンドレス解放フラッシュ -->
+<div id="unlock-flash"></div>
 
 <div id="scanlines"></div>
 <div class="scan-bar"></div>
@@ -1313,6 +1357,8 @@ function buildCards(){
   if(unlocked) ec.dataset.endless='1';
 
   if(unlocked){
+    const showUnlockAnim = _pendingUnlockAnim;
+    _pendingUnlockAnim = false;
     ec.innerHTML=`
       <span style="font-size:28px;flex-shrink:0;font-family:'Orbitron',monospace;color:#ff69b4;text-shadow:0 0 10px #ff69b4;">∞</span>
       <div style="flex:1;">
@@ -1322,9 +1368,15 @@ function buildCards(){
           <div class="sc-diff" style="color:#ff69b4;">DIFFICULTY：？？？</div>
           <div class="sc-foods" style="color:rgba(0,220,255,0.55);">ENEMY：ALL</div>
         </div>
+        ${showUnlockAnim ? '<div class="sc-unlocked-badge">✦ UNLOCKED ✦</div>' : ''}
       </div>
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,3.5vw,28px);color:#ff69b4;
         text-shadow:0 0 14px #ff69b4;letter-spacing:2px;flex-shrink:0;">∞</div>`;
+    ec.classList.add('sc-endless-unlocked');
+    if(showUnlockAnim){
+      // 次フレームでpopアニメを起動（transitionが先に適用されるのを避ける）
+      setTimeout(()=>{ ec.classList.add('sc-unlock-pop'); },30);
+    }
   } else {
     ec.innerHTML=`
       <span style="font-size:24px;flex-shrink:0;opacity:0.4;">🔒</span>
@@ -2162,6 +2214,12 @@ function showResult(){
   if(raf) cancelAnimationFrame(raf);
   lastT=performance.now();
   raf=requestAnimationFrame(resultLoop);
+
+  // ─── エンドレス解放演出 ───
+  if(gs.justUnlockedEndless){
+    gs.justUnlockedEndless = false;
+    setTimeout(()=>triggerEndlessUnlock(), 800);
+  }
 }
 
 function resultLoop(now){
@@ -2172,6 +2230,93 @@ function resultLoop(now){
   ctx.save();drawParts();ctx.restore();
   if(parts.length>0) raf=requestAnimationFrame(resultLoop);
   else raf=null;
+}
+
+/* ═══════════════════════════════════════════════
+   ENDLESS UNLOCK演出
+═══════════════════════════════════════════════ */
+let _pendingUnlockAnim = false;
+
+function triggerEndlessUnlock(){
+  // ① 溜め：小さな電子ハム音（0.3秒）
+  try{
+    const ac0=new(window.AudioContext||window.webkitAudioContext)();
+    const hum=ac0.createOscillator(),hg=ac0.createGain();
+    hum.type='sine';
+    hum.frequency.setValueAtTime(220,ac0.currentTime);
+    hum.frequency.linearRampToValueAtTime(440,ac0.currentTime+0.28);
+    hg.gain.setValueAtTime(0.06,ac0.currentTime);
+    hg.gain.linearRampToValueAtTime(0.14,ac0.currentTime+0.25);
+    hg.gain.exponentialRampToValueAtTime(0.001,ac0.currentTime+0.3);
+    hum.connect(hg);hg.connect(ac0.destination);
+    hum.start();hum.stop(ac0.currentTime+0.32);
+  }catch(e){}
+
+  // ② 0.32秒後に一斉発火
+  setTimeout(()=>{
+    // 破裂SE（ノイズ＋電子音＋低音ポン）
+    try{
+      const ac=new(window.AudioContext||window.webkitAudioContext)();
+      const bufLen=Math.floor(ac.sampleRate*0.12);
+      const buf=ac.createBuffer(1,bufLen,ac.sampleRate);
+      const data=buf.getChannelData(0);
+      for(let i=0;i<bufLen;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufLen,1.5);
+      const noise=ac.createBufferSource(); noise.buffer=buf;
+      const ng=ac.createGain();
+      ng.gain.setValueAtTime(0.7,ac.currentTime);
+      ng.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
+      const nhp=ac.createBiquadFilter(); nhp.type='highpass'; nhp.frequency.value=1800;
+      noise.connect(nhp); nhp.connect(ng); ng.connect(ac.destination);
+      noise.start();
+      const osc=ac.createOscillator(),og=ac.createGain();
+      osc.type='triangle';
+      osc.frequency.setValueAtTime(1200,ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(2800,ac.currentTime+0.05);
+      osc.frequency.exponentialRampToValueAtTime(600,ac.currentTime+0.18);
+      og.gain.setValueAtTime(0.55,ac.currentTime);
+      og.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.22);
+      osc.connect(og); og.connect(ac.destination);
+      osc.start(); osc.stop(ac.currentTime+0.24);
+      const sub=ac.createOscillator(),sg=ac.createGain();
+      sub.type='sine';
+      sub.frequency.setValueAtTime(90,ac.currentTime);
+      sub.frequency.exponentialRampToValueAtTime(40,ac.currentTime+0.18);
+      sg.gain.setValueAtTime(0.4,ac.currentTime);
+      sg.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.2);
+      sub.connect(sg); sg.connect(ac.destination);
+      sub.start(); sub.stop(ac.currentTime+0.22);
+    }catch(e){}
+
+    // 画面フラッシュ
+    const fl=document.getElementById('unlock-flash');
+    if(fl){
+      fl.style.transition='none'; fl.style.opacity='0.82';
+      setTimeout(()=>{ fl.style.transition='opacity 0.45s ease-out'; fl.style.opacity='0'; },60);
+    }
+
+    // ステージセレクトへ戻ったときに演出を走らせるフラグ
+    _pendingUnlockAnim=true;
+
+    // Canvasに輪っか＋パーティクル
+    const W=gc.width,H=gc.height;
+    const cx=W/2,cy=H/2;
+    [0.55,0.72,0.88].forEach((r,i)=>{
+      setTimeout(()=>{
+        parts.push({x:cx,y:cy,vx:0,vy:0,life:1,ml:0.30+i*0.08,sz:0,
+          sr:Math.max(W,H)*r,color:'#ff69b4',ring:true});
+      },i*65);
+    });
+    const cols=['#ff69b4','#ff9de0','#fff','#00c8ff','#ffd700'];
+    for(let i=0;i<60;i++){
+      const a=Math.random()*Math.PI*2,sp=80+Math.random()*200;
+      parts.push({x:cx,y:cy,
+        vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+        life:1,ml:0.55+Math.random()*0.5,
+        sz:2+Math.random()*6,
+        color:cols[Math.floor(Math.random()*cols.length)],ring:false});
+    }
+    if(!raf){lastT=performance.now();raf=requestAnimationFrame(resultLoop);}
+  },320);
 }
 
 function spawnGoldSparkles(){
@@ -2766,7 +2911,10 @@ function triggerClear(){
   cdActive=false;document.getElementById('cd-overlay').style.display='none';
   gs.running=false;gs.cleared=true;clearBurst();
   Sound.se('clear');
+  const wasUnlocked = Save.isEndlessUnlocked();
   Save.recordClear(gs.stage+1);
+  const justUnlocked = !wasUnlocked && Save.isEndlessUnlocked();
+  gs.justUnlockedEndless = justUnlocked;
   document.getElementById('cl-overlay').style.display='flex';
   setTimeout(()=>{document.getElementById('cl-overlay').style.display='none';if(raf)cancelAnimationFrame(raf);showResult();},3000);
 }
