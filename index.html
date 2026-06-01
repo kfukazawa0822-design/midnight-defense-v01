@@ -320,6 +320,95 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   color:rgba(255,200,80,0.85);margin-top:5px;
   text-shadow:0 0 6px rgba(255,180,0,0.6);
 }
+
+/* ─── エンドレスカード ラップ（ランプの基点）─── */
+.endless-gate-wrap{
+  grid-column:1/-1;
+  position:relative;
+  padding-top:22px;
+}
+
+/* ─── 進捗ランプバー ─── */
+.stage-lamp-bar{
+  position:absolute;
+  top:0; left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:flex-end;
+  gap:clamp(10px,2vw,18px);
+  z-index:10;
+  pointer-events:none;
+  transition:opacity 0.5s ease;
+}
+.stage-lamp-bar.fade-out{ opacity:0; }
+
+.slb-unit{ display:flex;flex-direction:column;align-items:center;gap:3px; }
+.slb-dot{
+  width:clamp(10px,1.8vw,14px);
+  height:clamp(10px,1.8vw,14px);
+  border-radius:50%;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.14);
+  transition:background .3s,box-shadow .3s,border-color .3s;
+  flex-shrink:0;
+}
+.slb-dot.s1{ background:#4ade80;border-color:#86efac;box-shadow:0 0 7px #4ade80,0 0 16px rgba(74,222,128,.5); }
+.slb-dot.s2{ background:#facc15;border-color:#fde047;box-shadow:0 0 7px #facc15,0 0 16px rgba(250,204,21,.5); }
+.slb-dot.s3{ background:#fb923c;border-color:#fdba74;box-shadow:0 0 7px #fb923c,0 0 16px rgba(251,146,60,.5); }
+.slb-dot.s4{ background:#ef4444;border-color:#fca5a5;box-shadow:0 0 7px #ef4444,0 0 16px rgba(239,68,68,.5); }
+.slb-lbl{
+  font-family:'Share Tech Mono',monospace;
+  font-size:clamp(6px,.9vw,8px);letter-spacing:1px;
+  color:rgba(255,255,255,0.2);white-space:nowrap;
+  transition:color .3s;
+}
+.slb-lbl.s1{ color:#86efac;text-shadow:0 0 5px rgba(74,222,128,.6); }
+.slb-lbl.s2{ color:#fde047;text-shadow:0 0 5px rgba(250,204,21,.6); }
+.slb-lbl.s3{ color:#fdba74;text-shadow:0 0 5px rgba(251,146,60,.6); }
+.slb-lbl.s4{ color:#fca5a5;text-shadow:0 0 5px rgba(239,68,68,.6); }
+.slb-sep{
+  font-family:'Share Tech Mono',monospace;
+  font-size:clamp(6px,.9vw,8px);
+  color:rgba(255,255,255,0.1);
+  padding-bottom:12px;flex-shrink:0;
+}
+
+/* ─── 解放フラッシュオーバーレイ ─── */
+#unlock-flash{
+  position:fixed;inset:0;z-index:9000;
+  background:#fff;opacity:0;pointer-events:none;
+}
+
+/* ─── 解放済みカード: 呼吸アニメ ─── */
+@keyframes endlessBreathe{
+  0%,100%{ box-shadow:0 0 14px rgba(255,105,180,.4),0 0 28px rgba(255,105,180,.15); }
+  50%    { box-shadow:0 0 28px rgba(255,105,180,.8),0 0 55px rgba(255,105,180,.35),0 0 80px rgba(200,60,180,.15); }
+}
+.sc-endless-unlocked{
+  animation:endlessBreathe 2.2s ease-in-out infinite;
+  border-color:rgba(255,105,180,.7)!important;
+}
+
+/* ─── UNLOCKED バッジ点滅 ─── */
+@keyframes unlockedPulse{
+  0%,100%{ opacity:1;text-shadow:0 0 10px #ff69b4,0 0 22px rgba(255,105,180,.6); }
+  50%    { opacity:.6;text-shadow:0 0 4px #ff69b4; }
+}
+.sc-unlocked-badge{
+  font-family:'Orbitron',monospace;font-weight:700;
+  font-size:clamp(8px,1.2vw,11px);letter-spacing:4px;
+  color:#ff69b4;margin-top:5px;
+  animation:unlockedPulse 1.6s ease-in-out infinite;
+}
+
+/* ─── 解放時カードポップ ─── */
+@keyframes unlockPop{
+  0%  { transform:scale(1);    }
+  40% { transform:scale(1.08); }
+  65% { transform:scale(.97);  }
+  100%{ transform:scale(1);    }
+}
+.sc-unlock-pop{ animation:unlockPop .55s cubic-bezier(.34,1.56,.64,1) both; }
 #endlessHiScore{
   width:100%;max-width:600px;margin-top:10px;z-index:2;
 }
@@ -736,6 +825,7 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   </div>
 </div>
 
+<div id="unlock-flash"></div>
 <div id="scanlines"></div>
 <div class="scan-bar"></div>
 
@@ -1267,25 +1357,69 @@ function showScreen(id){
   }
 }
 
-function buildCards(){
-  const g=document.getElementById('stageGrid');g.innerHTML='';
+/* ═══════════════════════════════════════════════
+   STAGE PROGRESS LAMPS
+   Save.getClears() を唯一の状態源として読み描画。
+   手動で点灯・消灯は行わない。
+═══════════════════════════════════════════════ */
+function renderStageLamps(wrap){
+  // wrap = .endless-gate-wrap の DOM要素
+  // 既存バーを除去して再生成
+  const old = wrap.querySelector('.stage-lamp-bar');
+  if(old) old.remove();
 
-  // グリッド親に pointerup を1つだけ登録。
-  // 離した位置の .sc を closest() で探して判定することで、
-  // ・カード外で離す → 何もしない
-  // ・スライドして別カードで離す → 離した先のカードを選択
-  // を実現する。click / touchend はカード側に持たせない。
+  if(Save.isEndlessUnlocked()) return; // 解放後は表示しない
+
+  const clears = Save.getClears();
+  const bar = document.createElement('div');
+  bar.className = 'stage-lamp-bar';
+
+  STAGES.forEach((st, i) => {
+    const lit = clears.has(st.id);
+    const cn  = 's' + st.id;           // 's1'〜's4'
+
+    const unit = document.createElement('div');
+    unit.className = 'slb-unit';
+
+    const dot = document.createElement('div');
+    dot.className = 'slb-dot' + (lit ? ' '+cn : '');
+
+    const lbl = document.createElement('div');
+    lbl.className = 'slb-lbl' + (lit ? ' '+cn : '');
+    lbl.textContent = 'ST.' + st.id;
+
+    unit.appendChild(dot);
+    unit.appendChild(lbl);
+    bar.appendChild(unit);
+
+    if(i < STAGES.length - 1){
+      const sep = document.createElement('div');
+      sep.className = 'slb-sep';
+      sep.textContent = '—';
+      bar.appendChild(sep);
+    }
+  });
+
+  wrap.insertBefore(bar, wrap.firstChild);
+}
+
+/* 解放演出後にbuildCardsが走ったとき1度だけUNLOCKEDバッジ+ポップを出すフラグ */
+let _pendingUnlockAnim = false;
+
+function buildCards(){
+  const g = document.getElementById('stageGrid'); g.innerHTML='';
+
   g.addEventListener('pointerup', e => {
     const card = e.target.closest('.sc');
-    if (!card || card.classList.contains('sc-locked')) return;
+    if(!card || card.classList.contains('sc-locked')) return;
     const idx = card.dataset.stageIdx;
-    if (idx !== undefined) {
+    if(idx !== undefined){
       Sound.se('next');
       if(Save.getTutOn()) showTutorial(Number(idx));
       else startGame(Number(idx));
       return;
     }
-    if (card.dataset.endless === '1') {
+    if(card.dataset.endless === '1'){
       Sound.se('next');
       if(Save.getTutOn()) showEndlessTutorial();
       else startEndless();
@@ -1294,7 +1428,7 @@ function buildCards(){
 
   STAGES.forEach((st,i)=>{
     const foods=EM.filter(e=>e.stage===st.id).map(e=>e.food).join(' · ');
-    const d=document.createElement('div');d.className='sc';
+    const d=document.createElement('div'); d.className='sc';
     d.dataset.stageIdx=i;
     d.innerHTML=`<span class="sc-icon">${st.icon}</span>
       <div class="sc-en">${st.en}</div>
@@ -1304,15 +1438,20 @@ function buildCards(){
     g.appendChild(d);
   });
 
+  // ── エンドレスカード（ランプの基点として .endless-gate-wrap に内包）──
   const unlocked = Save.isEndlessUnlocked();
-  const endlessWrap=document.createElement('div');
-  endlessWrap.style.cssText='grid-column:1/-1;';
-  const ec=document.createElement('div');
-  ec.className='sc' + (unlocked ? '' : ' sc-locked');
-  ec.style.cssText='display:flex;align-items:center;gap:16px;padding:13px 18px;';
-  if(unlocked) ec.dataset.endless='1';
+
+  const gateWrap = document.createElement('div');
+  gateWrap.className = 'endless-gate-wrap';
+
+  const ec = document.createElement('div');
+  ec.className = 'sc' + (unlocked ? '' : ' sc-locked');
+  ec.style.cssText = 'display:flex;align-items:center;gap:16px;padding:13px 18px;';
+  if(unlocked) ec.dataset.endless = '1';
 
   if(unlocked){
+    const showAnim = _pendingUnlockAnim;
+    _pendingUnlockAnim = false;
     ec.innerHTML=`
       <span style="font-size:28px;flex-shrink:0;font-family:'Orbitron',monospace;color:#ff69b4;text-shadow:0 0 10px #ff69b4;">∞</span>
       <div style="flex:1;">
@@ -1322,9 +1461,12 @@ function buildCards(){
           <div class="sc-diff" style="color:#ff69b4;">DIFFICULTY：？？？</div>
           <div class="sc-foods" style="color:rgba(0,220,255,0.55);">ENEMY：ALL</div>
         </div>
+        ${showAnim ? '<div class="sc-unlocked-badge">✦ UNLOCKED ✦</div>' : ''}
       </div>
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,3.5vw,28px);color:#ff69b4;
         text-shadow:0 0 14px #ff69b4;letter-spacing:2px;flex-shrink:0;">∞</div>`;
+    ec.classList.add('sc-endless-unlocked');
+    if(showAnim) setTimeout(()=>ec.classList.add('sc-unlock-pop'), 30);
   } else {
     ec.innerHTML=`
       <span style="font-size:24px;flex-shrink:0;opacity:0.4;">🔒</span>
@@ -1336,16 +1478,19 @@ function buildCards(){
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,3.5vw,28px);
         color:rgba(255,105,180,0.25);letter-spacing:2px;flex-shrink:0;">∞</div>`;
   }
-  endlessWrap.appendChild(ec);
-  g.appendChild(endlessWrap);
+
+  gateWrap.appendChild(ec);
+  g.appendChild(gateWrap);
+
+  // ランプはDOMに追加した後に描画（gateWrapが存在してから呼ぶ）
+  renderStageLamps(gateWrap);
 
   // ─── チュートリアルON/OFFトグル（常時表示）───
   {
     const tw=document.createElement('div');
     tw.id='tut-toggle-wrap';
     const lbl=document.createElement('span');
-    lbl.id='tut-toggle-label';
-    lbl.textContent='TUTORIAL';
+    lbl.id='tut-toggle-label'; lbl.textContent='TUTORIAL';
     const stateEl=document.createElement('span');
     stateEl.id='tut-toggle-state';
     const sw=document.createElement('div');
@@ -1365,9 +1510,7 @@ function buildCards(){
     };
     sw.addEventListener('click',e=>{e.stopPropagation();toggleFn();});
     sw.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();toggleFn();},{passive:false});
-    tw.appendChild(lbl);
-    tw.appendChild(stateEl);
-    tw.appendChild(sw);
+    tw.appendChild(lbl); tw.appendChild(stateEl); tw.appendChild(sw);
     g.appendChild(tw);
   }
 
@@ -2162,6 +2305,12 @@ function showResult(){
   if(raf) cancelAnimationFrame(raf);
   lastT=performance.now();
   raf=requestAnimationFrame(resultLoop);
+
+  // ─── エンドレス解放演出（状態とは分離。"結果"として後発火）───
+  if(gs.justUnlockedEndless){
+    gs.justUnlockedEndless = false;
+    setTimeout(()=>triggerEndlessUnlock(), 800);
+  }
 }
 
 function resultLoop(now){
@@ -2172,6 +2321,91 @@ function resultLoop(now){
   ctx.save();drawParts();ctx.restore();
   if(parts.length>0) raf=requestAnimationFrame(resultLoop);
   else raf=null;
+}
+
+/* ═══════════════════════════════════════════════
+   ENDLESS UNLOCK 演出
+   ランプ状態の更新とは完全に分離。あくまで"結果"の演出。
+═══════════════════════════════════════════════ */
+function triggerEndlessUnlock(){
+  // ① 溜め：小さな電子ハム音（0〜0.32秒）
+  try{
+    const ac0=new(window.AudioContext||window.webkitAudioContext)();
+    const hum=ac0.createOscillator(), hg=ac0.createGain();
+    hum.type='sine';
+    hum.frequency.setValueAtTime(220,ac0.currentTime);
+    hum.frequency.linearRampToValueAtTime(440,ac0.currentTime+0.28);
+    hg.gain.setValueAtTime(0.06,ac0.currentTime);
+    hg.gain.linearRampToValueAtTime(0.14,ac0.currentTime+0.25);
+    hg.gain.exponentialRampToValueAtTime(0.001,ac0.currentTime+0.3);
+    hum.connect(hg); hg.connect(ac0.destination);
+    hum.start(); hum.stop(ac0.currentTime+0.32);
+  }catch(e){}
+
+  // ② 0.32秒後に一斉発火
+  setTimeout(()=>{
+    // 破裂SE（ノイズ＋電子音＋低音ポン）
+    try{
+      const ac=new(window.AudioContext||window.webkitAudioContext)();
+      const bufLen=Math.floor(ac.sampleRate*0.12);
+      const buf=ac.createBuffer(1,bufLen,ac.sampleRate);
+      const data=buf.getChannelData(0);
+      for(let i=0;i<bufLen;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufLen,1.5);
+      const noise=ac.createBufferSource(); noise.buffer=buf;
+      const ng=ac.createGain();
+      ng.gain.setValueAtTime(0.7,ac.currentTime);
+      ng.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
+      const nhp=ac.createBiquadFilter(); nhp.type='highpass'; nhp.frequency.value=1800;
+      noise.connect(nhp); nhp.connect(ng); ng.connect(ac.destination);
+      noise.start();
+      const osc=ac.createOscillator(), og=ac.createGain();
+      osc.type='triangle';
+      osc.frequency.setValueAtTime(1200,ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(2800,ac.currentTime+0.05);
+      osc.frequency.exponentialRampToValueAtTime(600,ac.currentTime+0.18);
+      og.gain.setValueAtTime(0.55,ac.currentTime);
+      og.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.22);
+      osc.connect(og); og.connect(ac.destination);
+      osc.start(); osc.stop(ac.currentTime+0.24);
+      const sub=ac.createOscillator(), sg=ac.createGain();
+      sub.type='sine';
+      sub.frequency.setValueAtTime(90,ac.currentTime);
+      sub.frequency.exponentialRampToValueAtTime(40,ac.currentTime+0.18);
+      sg.gain.setValueAtTime(0.4,ac.currentTime);
+      sg.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.2);
+      sub.connect(sg); sg.connect(ac.destination);
+      sub.start(); sub.stop(ac.currentTime+0.22);
+    }catch(e){}
+
+    // 画面フラッシュ
+    const fl=document.getElementById('unlock-flash');
+    if(fl){
+      fl.style.transition='none'; fl.style.opacity='0.82';
+      setTimeout(()=>{ fl.style.transition='opacity 0.45s ease-out'; fl.style.opacity='0'; },60);
+    }
+
+    // ステージセレクトに戻ったときにカード演出を1度だけ出すフラグ
+    _pendingUnlockAnim = true;
+
+    // Canvas パーティクル（輪っか＋バースト）
+    const W=gc.width, H=gc.height, cx=W/2, cy=H/2;
+    [0.55,0.72,0.88].forEach((r,i)=>{
+      setTimeout(()=>{
+        parts.push({x:cx,y:cy,vx:0,vy:0,life:1,ml:0.30+i*0.08,sz:0,
+          sr:Math.max(W,H)*r,color:'#ff69b4',ring:true});
+      },i*65);
+    });
+    const cols=['#ff69b4','#ff9de0','#fff','#00c8ff','#ffd700'];
+    for(let i=0;i<60;i++){
+      const a=Math.random()*Math.PI*2, sp=80+Math.random()*200;
+      parts.push({x:cx,y:cy,
+        vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+        life:1, ml:0.55+Math.random()*0.5,
+        sz:2+Math.random()*6,
+        color:cols[Math.floor(Math.random()*cols.length)], ring:false});
+    }
+    if(!raf){ lastT=performance.now(); raf=requestAnimationFrame(resultLoop); }
+  }, 320);
 }
 
 function spawnGoldSparkles(){
@@ -2829,7 +3063,14 @@ function triggerClear(){
   cdActive=false;document.getElementById('cd-overlay').style.display='none';
   gs.running=false;gs.cleared=true;clearBurst();
   Sound.se('clear');
+
+  // ① 状態を永続化
+  const wasUnlocked = Save.isEndlessUnlocked();
   Save.recordClear(gs.stage+1);
+
+  // ② 今回のクリアで初めて解放されたかを記録（演出は showResult 後に発火）
+  gs.justUnlockedEndless = !wasUnlocked && Save.isEndlessUnlocked();
+
   document.getElementById('cl-overlay').style.display='flex';
   setTimeout(()=>{document.getElementById('cl-overlay').style.display='none';if(raf)cancelAnimationFrame(raf);showResult();},3000);
 }
