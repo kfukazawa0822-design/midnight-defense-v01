@@ -311,11 +311,12 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 }
 .sc-locked::after{
   content:'';position:absolute;inset:0;
-  background:rgba(0,0,20,0.55);
+  background:rgba(0,0,20,0.62);
   border-radius:inherit;
   z-index:1;
+  pointer-events:none;
 }
-/* ロックカード内コンテンツ：黒フィルターより前面 */
+/* ロックカード内コンテンツ：黒フィルター(z-index:1)より前面 */
 .sc-locked-content{
   position:relative;
   z-index:2;
@@ -354,6 +355,8 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 .ec-lamp-lbl.s2{color:#fde047;}
 .ec-lamp-lbl.s3{color:#fdba74;}
 .ec-lamp-lbl.s4{color:#fca5a5;}
+
+#endlessHiScore{
   width:100%;max-width:600px;margin-top:10px;z-index:2;
 }
 .hs-ttl{
@@ -1358,7 +1361,7 @@ function buildCards(){
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,3.5vw,28px);color:#ff69b4;
         text-shadow:0 0 14px #ff69b4;letter-spacing:2px;flex-shrink:0;">∞</div>`;
   } else {
-    ec.style.cssText='display:flex;align-items:center;justify-content:center;padding:14px 18px 16px;text-align:center;';
+    ec.style.cssText='display:flex;align-items:center;justify-content:center;padding:14px 18px 16px;';
     const clears = Save.getClears();
     const lampHTML = STAGES.map(st => {
       const cn = clears.has(st.id) ? ' s'+st.id : '';
@@ -1367,7 +1370,6 @@ function buildCards(){
         <div class="ec-lamp-lbl${cn}">ST.${st.id}</div>
       </div>`;
     }).join('');
-    // .sc-locked-content で z-index:2 に乗せ、黒フィルター(::after, z-index:1)より前面にする
     ec.innerHTML=`
       <div class="sc-locked-content">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
@@ -1376,7 +1378,7 @@ function buildCards(){
             font-size:clamp(11px,1.9vw,15px);letter-spacing:4px;text-shadow:0 0 8px rgba(255,255,0,0.5);">ENDLESS MODE</div>
         </div>
         <div style="font-family:'Share Tech Mono',monospace;font-size:clamp(8px,1.2vw,10px);
-          color:rgba(255,255,255,0.5);letter-spacing:3px;margin-bottom:12px;">LOCKED</div>
+          color:rgba(255,255,255,0.55);letter-spacing:3px;margin-bottom:12px;">LOCKED</div>
         <div class="ec-lamp-row">${lampHTML}</div>
       </div>`;
   }
