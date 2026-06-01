@@ -251,14 +251,13 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   background:linear-gradient(90deg,transparent,rgba(255,80,200,0.9),rgba(160,60,255,0.7),transparent);
 }
 #etImg{
-  width:100%;height:clamp(180px,30vw,280px);
+  width:100%;
+  aspect-ratio:5/4;
   position:relative;overflow:hidden;
   background:rgba(0,5,20,0.9);
   border-bottom:1px solid rgba(255,80,200,0.2);
-  display:flex;align-items:center;justify-content:center;
 }
-#etImgEl{width:100%;height:100%;object-fit:contain;display:block;}
-#etImgEl[src=""]{display:none;}
+#etImgEl{display:none;}/* background-imageで描画するため非表示 */
 #etImgFallback{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:clamp(48px,10vw,80px);
@@ -1593,15 +1592,16 @@ function renderStage1TutPage(page) {
   card.style.animation = 'none'; void card.offsetWidth;
   card.style.animation = 'cardPop 0.32s cubic-bezier(0.34,1.56,0.64,1) both';
 
-  const img    = document.getElementById('etImgEl');
-  const loaded = Assets.get(data.imgKey);
+  const imgDiv = document.getElementById('etImg');
+  const loaded  = Assets.get(data.imgKey);
   if(loaded){
-    img.src = Assets.src(data.imgKey);
-    img.style.display = 'block';
+    imgDiv.style.backgroundImage    = `url(${Assets.src(data.imgKey)})`;
+    imgDiv.style.backgroundSize     = 'contain';
+    imgDiv.style.backgroundRepeat   = 'no-repeat';
+    imgDiv.style.backgroundPosition = 'center';
     document.getElementById('etImgFallback').style.display = 'none';
   } else {
-    img.src = '';
-    img.style.display = 'none';
+    imgDiv.style.backgroundImage = 'none';
     const fb = document.getElementById('etImgFallback');
     fb.textContent = data.fallback;
     fb.style.display = 'flex';
