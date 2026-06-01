@@ -314,47 +314,6 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   background:rgba(0,0,20,0.55);
   border-radius:inherit;
 }
-
-/* ─── ENDLESS 解放フラッシュオーバーレイ ─── */
-#unlock-flash{
-  position:fixed;inset:0;z-index:9000;
-  background:#fff;
-  opacity:0;pointer-events:none;
-  transition:opacity 0.05s;
-}
-
-/* ─── ENDLESS 解放済みカード: 呼吸アニメ ─── */
-@keyframes endlessBreathe{
-  0%,100%{box-shadow:0 0 14px rgba(255,105,180,0.4),0 0 28px rgba(255,105,180,0.15);}
-  50%{box-shadow:0 0 28px rgba(255,105,180,0.8),0 0 55px rgba(255,105,180,0.35),0 0 80px rgba(200,60,180,0.15);}
-}
-.sc-endless-unlocked{
-  animation:endlessBreathe 2.2s ease-in-out infinite;
-  border-color:rgba(255,105,180,0.7) !important;
-}
-
-/* ─── UNLOCKED バッジ点滅 ─── */
-@keyframes unlockedPulse{
-  0%,100%{opacity:1;text-shadow:0 0 10px #ff69b4,0 0 22px rgba(255,105,180,0.6);}
-  50%{opacity:0.6;text-shadow:0 0 4px #ff69b4;}
-}
-.sc-unlocked-badge{
-  font-family:'Orbitron',monospace;font-weight:700;
-  font-size:clamp(8px,1.2vw,11px);letter-spacing:4px;
-  color:#ff69b4;margin-top:5px;
-  animation:unlockedPulse 1.6s ease-in-out infinite;
-}
-
-/* ─── 解放時カードスケール演出 ─── */
-@keyframes unlockPop{
-  0%  {transform:scale(1);}
-  40% {transform:scale(1.08);}
-  65% {transform:scale(0.97);}
-  100%{transform:scale(1);}
-}
-.sc-unlock-pop{
-  animation:unlockPop 0.55s cubic-bezier(0.34,1.56,0.64,1) both;
-}
 .sc-lock-badge{
   font-family:'Share Tech Mono',monospace;
   font-size:clamp(8px,1.2vw,10px);letter-spacing:2px;
@@ -777,9 +736,6 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   </div>
 </div>
 
-<!-- エンドレス解放フラッシュ -->
-<div id="unlock-flash"></div>
-
 <div id="scanlines"></div>
 <div class="scan-bar"></div>
 
@@ -947,7 +903,7 @@ const CFG={
   MAX_HP:2000, GAME_TIME:60,
   BASE_APPROACH:6.5, WARN_TIME:2.2,
   COMBO_MS:3000, BASE_R:42,
-  BULLET_SPEED:2200, PLAYER_Y:0.84,
+  BULLET_SPEED:3200, PLAYER_Y:0.84,
 };
 
 const STAGES=[
@@ -1357,8 +1313,6 @@ function buildCards(){
   if(unlocked) ec.dataset.endless='1';
 
   if(unlocked){
-    const showUnlockAnim = _pendingUnlockAnim;
-    _pendingUnlockAnim = false;
     ec.innerHTML=`
       <span style="font-size:28px;flex-shrink:0;font-family:'Orbitron',monospace;color:#ff69b4;text-shadow:0 0 10px #ff69b4;">∞</span>
       <div style="flex:1;">
@@ -1368,15 +1322,9 @@ function buildCards(){
           <div class="sc-diff" style="color:#ff69b4;">DIFFICULTY：？？？</div>
           <div class="sc-foods" style="color:rgba(0,220,255,0.55);">ENEMY：ALL</div>
         </div>
-        ${showUnlockAnim ? '<div class="sc-unlocked-badge">✦ UNLOCKED ✦</div>' : ''}
       </div>
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,3.5vw,28px);color:#ff69b4;
         text-shadow:0 0 14px #ff69b4;letter-spacing:2px;flex-shrink:0;">∞</div>`;
-    ec.classList.add('sc-endless-unlocked');
-    if(showUnlockAnim){
-      // 次フレームでpopアニメを起動（transitionが先に適用されるのを避ける）
-      setTimeout(()=>{ ec.classList.add('sc-unlock-pop'); },30);
-    }
   } else {
     ec.innerHTML=`
       <span style="font-size:24px;flex-shrink:0;opacity:0.4;">🔒</span>
@@ -2214,12 +2162,6 @@ function showResult(){
   if(raf) cancelAnimationFrame(raf);
   lastT=performance.now();
   raf=requestAnimationFrame(resultLoop);
-
-  // ─── エンドレス解放演出 ───
-  if(gs.justUnlockedEndless){
-    gs.justUnlockedEndless = false;
-    setTimeout(()=>triggerEndlessUnlock(), 800);
-  }
 }
 
 function resultLoop(now){
@@ -2230,93 +2172,6 @@ function resultLoop(now){
   ctx.save();drawParts();ctx.restore();
   if(parts.length>0) raf=requestAnimationFrame(resultLoop);
   else raf=null;
-}
-
-/* ═══════════════════════════════════════════════
-   ENDLESS UNLOCK演出
-═══════════════════════════════════════════════ */
-let _pendingUnlockAnim = false;
-
-function triggerEndlessUnlock(){
-  // ① 溜め：小さな電子ハム音（0.3秒）
-  try{
-    const ac0=new(window.AudioContext||window.webkitAudioContext)();
-    const hum=ac0.createOscillator(),hg=ac0.createGain();
-    hum.type='sine';
-    hum.frequency.setValueAtTime(220,ac0.currentTime);
-    hum.frequency.linearRampToValueAtTime(440,ac0.currentTime+0.28);
-    hg.gain.setValueAtTime(0.06,ac0.currentTime);
-    hg.gain.linearRampToValueAtTime(0.14,ac0.currentTime+0.25);
-    hg.gain.exponentialRampToValueAtTime(0.001,ac0.currentTime+0.3);
-    hum.connect(hg);hg.connect(ac0.destination);
-    hum.start();hum.stop(ac0.currentTime+0.32);
-  }catch(e){}
-
-  // ② 0.32秒後に一斉発火
-  setTimeout(()=>{
-    // 破裂SE（ノイズ＋電子音＋低音ポン）
-    try{
-      const ac=new(window.AudioContext||window.webkitAudioContext)();
-      const bufLen=Math.floor(ac.sampleRate*0.12);
-      const buf=ac.createBuffer(1,bufLen,ac.sampleRate);
-      const data=buf.getChannelData(0);
-      for(let i=0;i<bufLen;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/bufLen,1.5);
-      const noise=ac.createBufferSource(); noise.buffer=buf;
-      const ng=ac.createGain();
-      ng.gain.setValueAtTime(0.7,ac.currentTime);
-      ng.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);
-      const nhp=ac.createBiquadFilter(); nhp.type='highpass'; nhp.frequency.value=1800;
-      noise.connect(nhp); nhp.connect(ng); ng.connect(ac.destination);
-      noise.start();
-      const osc=ac.createOscillator(),og=ac.createGain();
-      osc.type='triangle';
-      osc.frequency.setValueAtTime(1200,ac.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(2800,ac.currentTime+0.05);
-      osc.frequency.exponentialRampToValueAtTime(600,ac.currentTime+0.18);
-      og.gain.setValueAtTime(0.55,ac.currentTime);
-      og.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.22);
-      osc.connect(og); og.connect(ac.destination);
-      osc.start(); osc.stop(ac.currentTime+0.24);
-      const sub=ac.createOscillator(),sg=ac.createGain();
-      sub.type='sine';
-      sub.frequency.setValueAtTime(90,ac.currentTime);
-      sub.frequency.exponentialRampToValueAtTime(40,ac.currentTime+0.18);
-      sg.gain.setValueAtTime(0.4,ac.currentTime);
-      sg.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.2);
-      sub.connect(sg); sg.connect(ac.destination);
-      sub.start(); sub.stop(ac.currentTime+0.22);
-    }catch(e){}
-
-    // 画面フラッシュ
-    const fl=document.getElementById('unlock-flash');
-    if(fl){
-      fl.style.transition='none'; fl.style.opacity='0.82';
-      setTimeout(()=>{ fl.style.transition='opacity 0.45s ease-out'; fl.style.opacity='0'; },60);
-    }
-
-    // ステージセレクトへ戻ったときに演出を走らせるフラグ
-    _pendingUnlockAnim=true;
-
-    // Canvasに輪っか＋パーティクル
-    const W=gc.width,H=gc.height;
-    const cx=W/2,cy=H/2;
-    [0.55,0.72,0.88].forEach((r,i)=>{
-      setTimeout(()=>{
-        parts.push({x:cx,y:cy,vx:0,vy:0,life:1,ml:0.30+i*0.08,sz:0,
-          sr:Math.max(W,H)*r,color:'#ff69b4',ring:true});
-      },i*65);
-    });
-    const cols=['#ff69b4','#ff9de0','#fff','#00c8ff','#ffd700'];
-    for(let i=0;i<60;i++){
-      const a=Math.random()*Math.PI*2,sp=80+Math.random()*200;
-      parts.push({x:cx,y:cy,
-        vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
-        life:1,ml:0.55+Math.random()*0.5,
-        sz:2+Math.random()*6,
-        color:cols[Math.floor(Math.random()*cols.length)],ring:false});
-    }
-    if(!raf){lastT=performance.now();raf=requestAnimationFrame(resultLoop);}
-  },320);
 }
 
 function spawnGoldSparkles(){
@@ -2447,7 +2302,7 @@ function updateEnemies(dt){
 function updateBullets(dt){
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
-    b.life-=dt*5.5;
+    b.life-=dt*(b.decay||5.5);
     if(b.life<=0){bullets.splice(i,1);continue;}
     b.x+=b.vx*CFG.BULLET_SPEED*dt;
     b.y+=b.vy*CFG.BULLET_SPEED*dt;
@@ -2644,28 +2499,91 @@ function drawEnemies(){
 function drawBullets(){
   bullets.forEach(b=>{
     if(b.life<=0) return;
-    const alpha=Math.max(0,b.life);
-    const beamLen=28+b.life*22;
-    const tx=b.x-b.vx*beamLen, ty=b.y-b.vy*beamLen;
+
+    // 奥行きスケール：発射直後=1.0 → 消滅直前=0.15
+    const ds = 0.15 + b.life * 0.85;
+
+    // 進行方向角度
+    const angle = Math.atan2(b.vy, b.vx);
+
+    // 弾体（楕円）サイズ
+    const rx = 14 * ds;   // 長軸（進行方向）
+    const ry =  5 * ds;   // 短軸
+
+    // 尾の長さ
+    const tailLen = (40 + b.life * 60) * ds;
+    const tx = b.x - b.vx * tailLen;
+    const ty = b.y - b.vy * tailLen;
+
     ctx.save();
-    ctx.globalAlpha=alpha;
-    ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle='rgba(160,100,255,0.35)';
-    ctx.lineWidth=7;ctx.lineCap='round';
-    ctx.shadowColor='#c080ff';ctx.shadowBlur=18;
+
+    // ── 尾（グラデーション1本。arc なし → 粒にならない）
+    const tailGrad = ctx.createLinearGradient(b.x, b.y, tx, ty);
+    tailGrad.addColorStop(0,   `rgba(160,220,255,${0.9 * b.life})`);
+    tailGrad.addColorStop(0.2, `rgba(80,140,255,${0.6 * b.life})`);
+    tailGrad.addColorStop(0.6, `rgba(40,60,200,${0.2 * b.life})`);
+    tailGrad.addColorStop(1,   'rgba(0,10,80,0)');
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(tx, ty);
+    ctx.strokeStyle = tailGrad;
+    ctx.lineWidth   = ry * 2;
+    ctx.lineCap     = 'round';
+    ctx.shadowColor = '#60aaff';
+    ctx.shadowBlur  = 10 * ds;
+    ctx.globalAlpha = b.life;
     ctx.stroke();
-    ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle='rgba(180,120,255,0.85)';
-    ctx.lineWidth=3;ctx.shadowBlur=10;
-    ctx.stroke();
-    ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(b.x,b.y);
-    ctx.strokeStyle='rgba(255,255,255,0.95)';
-    ctx.lineWidth=1.2;ctx.shadowColor='#fff';ctx.shadowBlur=6;
-    ctx.stroke();
-    ctx.beginPath();ctx.arc(b.x,b.y,3*b.life,0,Math.PI*2);
-    ctx.fillStyle='rgba(220,180,255,0.9)';
-    ctx.shadowColor='#c0a0ff';ctx.shadowBlur=12;
+
+    // ── 外周グロー（楕円形）
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(angle);
+    ctx.scale(1, ry / rx);
+    const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * 1.8);
+    glowGrad.addColorStop(0,   `rgba(180,230,255,${0.5 * b.life})`);
+    glowGrad.addColorStop(0.5, `rgba(60,120,255,${0.25 * b.life})`);
+    glowGrad.addColorStop(1,   'rgba(0,20,120,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, rx * 1.8, 0, Math.PI * 2);
+    ctx.fillStyle   = glowGrad;
+    ctx.shadowColor = '#80c0ff';
+    ctx.shadowBlur  = 18 * ds;
+    ctx.globalAlpha = b.life;
     ctx.fill();
+    ctx.restore();
+
+    // ── コア楕円本体（白熱 → 青グラデ）
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(angle);
+    ctx.scale(1, ry / rx);
+    const coreGrad = ctx.createRadialGradient(rx * 0.15, 0, 0, 0, 0, rx);
+    coreGrad.addColorStop(0,    'rgba(255,255,255,1)');
+    coreGrad.addColorStop(0.15, 'rgba(220,245,255,0.98)');
+    coreGrad.addColorStop(0.45, 'rgba(100,180,255,0.9)');
+    coreGrad.addColorStop(0.8,  'rgba(30,80,220,0.6)');
+    coreGrad.addColorStop(1,    'rgba(10,30,140,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fillStyle   = coreGrad;
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur  = 16 * ds;
+    ctx.globalAlpha = Math.min(1, b.life * 1.3);
+    ctx.fill();
+    ctx.restore();
+
+    // ── 先端ハイライト（白い点）
+    ctx.save();
+    ctx.translate(b.x + b.vx * rx * 0.6, b.y + b.vy * rx * 0.6);
+    ctx.beginPath();
+    ctx.arc(0, 0, ry * 0.7, 0, Math.PI * 2);
+    ctx.fillStyle   = 'rgba(255,255,255,0.95)';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur  = 12 * ds;
+    ctx.globalAlpha = Math.min(1, b.life * 1.4);
+    ctx.fill();
+    ctx.restore();
+
     ctx.restore();
   });
 }
@@ -2911,10 +2829,7 @@ function triggerClear(){
   cdActive=false;document.getElementById('cd-overlay').style.display='none';
   gs.running=false;gs.cleared=true;clearBurst();
   Sound.se('clear');
-  const wasUnlocked = Save.isEndlessUnlocked();
   Save.recordClear(gs.stage+1);
-  const justUnlocked = !wasUnlocked && Save.isEndlessUnlocked();
-  gs.justUnlockedEndless = justUnlocked;
   document.getElementById('cl-overlay').style.display='flex';
   setTimeout(()=>{document.getElementById('cl-overlay').style.display='none';if(raf)cancelAnimationFrame(raf);showResult();},3000);
 }
@@ -3059,7 +2974,10 @@ function handleTap(tapX,tapY){
   const ox=W/2, oy=H*CFG.PLAYER_Y-Math.min(W,H)*0.044;
   const dx=tapX-ox, dy=tapY-oy;
   const len=Math.sqrt(dx*dx+dy*dy)||1;
-  bullets.push({x:ox,y:oy,vx:dx/len,vy:dy/len,r:5,life:1});
+  const minDist = Math.min(W, H) * 0.15;
+  const targetDist = Math.max(len, minDist) * 1.15;
+  const decay = CFG.BULLET_SPEED / targetDist;
+  bullets.push({x:ox,y:oy,vx:dx/len,vy:dy/len,r:5,life:1,decay});
   doMuzzleFlash(ox,oy);
 }
 
