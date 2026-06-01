@@ -307,12 +307,20 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 
 /* ─── ENDLESSロック / ハイスコア ─── */
 .sc-locked{
-  opacity:0.55;cursor:not-allowed;position:relative;
+  cursor:not-allowed;position:relative;
 }
 .sc-locked::after{
   content:'';position:absolute;inset:0;
-  background:rgba(0,0,20,0.45);
+  background:rgba(0,0,20,0.55);
   border-radius:inherit;
+  z-index:1;
+}
+/* ロックカード内コンテンツ：黒フィルターより前面 */
+.sc-locked-content{
+  position:relative;
+  z-index:2;
+  display:flex;flex-direction:column;align-items:center;
+  width:100%;
 }
 .sc-lock-badge{
   font-family:'Share Tech Mono',monospace;
@@ -320,7 +328,6 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
   color:rgba(255,200,80,0.85);margin-top:5px;
   text-shadow:0 0 6px rgba(255,180,0,0.6);
 }
-
 /* ─── ランプUI（未解放エンドレスカード内部）─── */
 .ec-lamp-row{
   display:flex;align-items:flex-start;justify-content:center;
@@ -330,24 +337,23 @@ canvas{display:block;position:absolute;top:0;left:0;pointer-events:none;}
 .ec-lamp-dot{
   width:clamp(9px,1.6vw,13px);height:clamp(9px,1.6vw,13px);
   border-radius:50%;
-  background:rgba(255,255,255,0.07);
-  border:1px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.10);
+  border:1px solid rgba(255,255,255,0.22);
   flex-shrink:0;
 }
-.ec-lamp-dot.s1{background:#4ade80;border-color:#86efac;box-shadow:0 0 7px #4ade80,0 0 16px rgba(74,222,128,.5);}
-.ec-lamp-dot.s2{background:#facc15;border-color:#fde047;box-shadow:0 0 7px #facc15,0 0 16px rgba(250,204,21,.5);}
-.ec-lamp-dot.s3{background:#fb923c;border-color:#fdba74;box-shadow:0 0 7px #fb923c,0 0 16px rgba(251,146,60,.5);}
-.ec-lamp-dot.s4{background:#ef4444;border-color:#fca5a5;box-shadow:0 0 7px #ef4444,0 0 16px rgba(239,68,68,.5);}
+.ec-lamp-dot.s1{background:#4ade80;border-color:#86efac;box-shadow:0 0 7px #4ade80,0 0 16px rgba(74,222,128,.55);}
+.ec-lamp-dot.s2{background:#facc15;border-color:#fde047;box-shadow:0 0 7px #facc15,0 0 16px rgba(250,204,21,.55);}
+.ec-lamp-dot.s3{background:#fb923c;border-color:#fdba74;box-shadow:0 0 7px #fb923c,0 0 16px rgba(251,146,60,.55);}
+.ec-lamp-dot.s4{background:#ef4444;border-color:#fca5a5;box-shadow:0 0 7px #ef4444,0 0 16px rgba(239,68,68,.55);}
 .ec-lamp-lbl{
   font-family:'Share Tech Mono',monospace;
   font-size:clamp(6px,.85vw,8px);letter-spacing:1px;
-  color:rgba(255,255,255,0.2);white-space:nowrap;
+  color:rgba(255,255,255,0.35);white-space:nowrap;
 }
 .ec-lamp-lbl.s1{color:#86efac;}
 .ec-lamp-lbl.s2{color:#fde047;}
 .ec-lamp-lbl.s3{color:#fdba74;}
 .ec-lamp-lbl.s4{color:#fca5a5;}
-#endlessHiScore{
   width:100%;max-width:600px;margin-top:10px;z-index:2;
 }
 .hs-ttl{
@@ -1352,8 +1358,7 @@ function buildCards(){
       <div style="font-family:'Orbitron',monospace;font-size:clamp(20px,3.5vw,28px);color:#ff69b4;
         text-shadow:0 0 14px #ff69b4;letter-spacing:2px;flex-shrink:0;">∞</div>`;
   } else {
-    // ── 未解放：ランプをカード内部に、縦並び中央揃え ──
-    ec.style.cssText='display:flex;flex-direction:column;align-items:center;padding:14px 18px 16px;text-align:center;';
+    ec.style.cssText='display:flex;align-items:center;justify-content:center;padding:14px 18px 16px;text-align:center;';
     const clears = Save.getClears();
     const lampHTML = STAGES.map(st => {
       const cn = clears.has(st.id) ? ' s'+st.id : '';
@@ -1362,15 +1367,18 @@ function buildCards(){
         <div class="ec-lamp-lbl${cn}">ST.${st.id}</div>
       </div>`;
     }).join('');
+    // .sc-locked-content で z-index:2 に乗せ、黒フィルター(::after, z-index:1)より前面にする
     ec.innerHTML=`
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-        <span style="font-size:16px;opacity:0.5;">🔒</span>
-        <div style="font-family:'Orbitron',monospace;font-weight:700;color:#ff0;
-          font-size:clamp(11px,1.9vw,15px);letter-spacing:4px;text-shadow:0 0 8px rgba(255,255,0,0.4);">ENDLESS MODE</div>
-      </div>
-      <div style="font-family:'Share Tech Mono',monospace;font-size:clamp(8px,1.2vw,10px);
-        color:rgba(255,255,255,0.3);letter-spacing:3px;margin-bottom:12px;">LOCKED</div>
-      <div class="ec-lamp-row">${lampHTML}</div>`;
+      <div class="sc-locked-content">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:16px;">🔒</span>
+          <div style="font-family:'Orbitron',monospace;font-weight:700;color:#ff0;
+            font-size:clamp(11px,1.9vw,15px);letter-spacing:4px;text-shadow:0 0 8px rgba(255,255,0,0.5);">ENDLESS MODE</div>
+        </div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:clamp(8px,1.2vw,10px);
+          color:rgba(255,255,255,0.5);letter-spacing:3px;margin-bottom:12px;">LOCKED</div>
+        <div class="ec-lamp-row">${lampHTML}</div>
+      </div>`;
   }
   endlessWrap.appendChild(ec);
   g.appendChild(endlessWrap);
