@@ -43,6 +43,7 @@ const Assets = (() => {
     'endless_tutorial_02': 'assets/ui/endless_tutorial_02.png',
     'endless_tutorial_03': 'assets/ui/endless_tutorial_03.png',
     'endless_result'     : 'assets/ui/endless_result.png',
+    'bullet'             : 'assets/ui/bullet.png',
     'player_ship'        : 'assets/player/player_ship.png',
     'stage_bg'           : 'assets/backgrounds/stage_bg.webp',
   };
