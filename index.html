@@ -1338,13 +1338,14 @@ function showScreen(id){
     if(!rainRaf) animateRain();
   }
   if(id==='stage'){
-    buildCards();
+    // 解放演出フラグがある場合は「全ランプ点灯のロックカード」で描画し、演出後に切り替える
+    const doUnlockAnim = _pendingUnlockAnim;
+    _pendingUnlockAnim = false;
+    buildCards(doUnlockAnim ? 'forceShowLocked' : null);
     const ss=document.getElementById('stageScreen');
     if(ss) ss.scrollTop=0;
-    // エンドレス解放演出フラグが立っていたら演出を起動
-    if(_pendingUnlockAnim){
-      _pendingUnlockAnim=false;
-      setTimeout(()=>playEndlessUnlockAnim(), 600); // ランプ点灯後少し溜め
+    if(doUnlockAnim){
+      setTimeout(()=>playEndlessUnlockAnim(), 500);
     }
   }
 }
@@ -1353,32 +1354,20 @@ function showScreen(id){
    ENDLESS UNLOCK ANIMATION
 ═══════════════════════════════════════════════ */
 function playEndlessUnlockAnim(){
-  // 最後のランプ（ST.4）を点灯させてポップ
+  // Step1: 全ランプを順にポップ（既に全灯状態で表示されている）
   const lamps = document.querySelectorAll('.ec-lamp-dot');
-  lamps.forEach(dot=>{
-    if(!dot.classList.contains('s1')&&!dot.classList.contains('s2')&&
-       !dot.classList.contains('s3')&&!dot.classList.contains('s4')){
-      // 未点灯のランプを検出して点灯アニメ（念のため）
-      const unit = dot.closest('.ec-lamp-unit');
-      if(unit){
-        const lbl = unit.querySelector('.ec-lamp-lbl');
-        dot.classList.add('s4');
-        if(lbl) lbl.classList.add('s4');
-      }
-    }
-  });
-
-  // 全ランプを順番にポップ
-  document.querySelectorAll('.ec-lamp-dot').forEach((dot, i)=>{
+  lamps.forEach((dot, i)=>{
     setTimeout(()=>{
-      dot.style.animation='lampLit 0.45s cubic-bezier(0.34,1.56,0.64,1) both';
-      setTimeout(()=>dot.style.animation='', 450);
-    }, i * 80);
+      dot.style.animation = 'lampLit 0.45s cubic-bezier(0.34,1.56,0.64,1) both';
+      setTimeout(()=>{ dot.style.animation = ''; }, 450);
+    }, i * 100);
   });
 
-  // 0.35秒 溜め → SE → フラッシュ → パーティクル → テキスト
+  // Step2: 溜め（全ランプポップ完了 + 0.35秒）
+  const lampPopDuration = lamps.length * 100 + 350;
+
   setTimeout(()=>{
-    // 解放SE (既存SEを流用。'clear'で代替、sound.jsに'unlock'があれば使う)
+    // 解放SE
     try{ Sound.se('unlock'); } catch(e){ try{ Sound.se('clear'); }catch(e2){} }
 
     // 白フラッシュ
@@ -1387,9 +1376,9 @@ function playEndlessUnlockAnim(){
     overlay.classList.add('active');
     overlay.style.pointerEvents = 'none';
     flash.style.opacity = '1';
-    setTimeout(()=>flash.style.opacity = '0', 120);
+    setTimeout(()=>{ flash.style.opacity = '0'; }, 120);
 
-    // パーティクル（gameCanvasを使用）
+    // パーティクル（専用canvas）
     _unlockParticles = [];
     _unlockAnimActive = true;
     const uc = document.getElementById('endless-unlock-canvas');
@@ -1398,21 +1387,25 @@ function playEndlessUnlockAnim(){
     _spawnUnlockParticles(uc.width, uc.height);
     _runUnlockParticles();
 
-    // テキスト表示
+    // Step3: ENDLESS UNLOCKED! テキスト表示
     setTimeout(()=>{
       document.getElementById('endless-unlock-text').classList.add('show');
-    }, 180);
+    }, 150);
 
-    // 2秒後に後片付け
+    // Step4: 演出完了 → テキストフェードアウト → 解放カードへ切り替え
     setTimeout(()=>{
       document.getElementById('endless-unlock-text').classList.remove('show');
+
       setTimeout(()=>{
         overlay.classList.remove('active');
         _unlockAnimActive = false;
-      }, 500);
-    }, 2200);
+        // ここで初めて解放済みカードへ切り替える
+        buildCards();
+      }, 400);
 
-  }, 350); // 溜め時間
+    }, 2000);
+
+  }, lampPopDuration);
 }
 
 let _unlockParticles = [];
@@ -1474,7 +1467,7 @@ function _runUnlockParticles(){
   _unlockRaf = requestAnimationFrame(_runUnlockParticles);
 }
 
-function buildCards(){
+function buildCards(mode){
   const g=document.getElementById('stageGrid');g.innerHTML='';
 
   // グリッド親に pointerup を1つだけ登録。
@@ -1512,11 +1505,13 @@ function buildCards(){
   });
 
   const unlocked = Save.isEndlessUnlocked();
+  // forceShowLocked: 解放済みだが演出のためにランプカードを表示（全灯状態）
+  const showAsLocked = (mode === 'forceShowLocked') || !unlocked;
   const endlessWrap=document.createElement('div');
   endlessWrap.style.cssText='grid-column:1/-1;';
   const ec=document.createElement('div');
-  ec.className='sc' + (unlocked ? '' : ' sc-locked');
-  if(unlocked){
+  ec.className='sc' + (showAsLocked ? ' sc-locked' : '');
+  if(!showAsLocked){
     ec.style.cssText='display:flex;align-items:center;gap:16px;padding:13px 18px;';
     ec.dataset.endless='1';
     ec.innerHTML=`
@@ -1533,9 +1528,11 @@ function buildCards(){
         text-shadow:0 0 14px #ff69b4;letter-spacing:2px;flex-shrink:0;">∞</div>`;
   } else {
     ec.style.cssText='display:flex;align-items:center;justify-content:center;padding:14px 18px 16px;';
+    // forceShowLocked時は全ランプを強制点灯、通常時は実際のクリア状態を使用
     const clears = Save.getClears();
     const lampHTML = STAGES.map(st => {
-      const cn = clears.has(st.id) ? ' s'+st.id : '';
+      const lit = (mode === 'forceShowLocked') ? true : clears.has(st.id);
+      const cn = lit ? ' s'+st.id : '';
       return `<div class="ec-lamp-unit">
         <div class="ec-lamp-dot${cn}"></div>
         <div class="ec-lamp-lbl${cn}">ST.${st.id}</div>
